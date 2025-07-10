@@ -14,7 +14,6 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     networks:
       - microservice-network
     healthcheck:
@@ -26,8 +25,8 @@ services:
   # Auth Service
   auth-service:
     build:
-      context: ./auth-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./auth-service/Dockerfile
     container_name: microservice-auth
     env_file:
       - .env
@@ -41,7 +40,7 @@ services:
       - DB_NAME=${AUTH_DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRY_HOURS=${JWT_EXPIRY_HOURS}
-      - USER_SERVICE_URL=http://user-service:8081
+      - USER_SERVICE_URL=user-service:9081
     ports:
       - "8080:8080"
     depends_on:
@@ -54,8 +53,8 @@ services:
   # User Service
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./user-service/Dockerfile
     container_name: microservice-user
     env_file:
       - .env
@@ -71,6 +70,7 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8080
     ports:
       - "8081:8081"
+      - "9081:9081"
     depends_on:
       mysql:
         condition: service_healthy

@@ -35,7 +35,7 @@ func LoadConfig() (*Config, error) {
 
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 
-		UserServiceURL: getEnv("USER_SERVICE_URL", "http://localhost:8081"),
+		UserServiceURL: getEnv("USER_SERVICE_URL", "localhost:9081"),
 	}
 
 	jwtExpiryStr := getEnv("JWT_EXPIRY_HOURS", "24")

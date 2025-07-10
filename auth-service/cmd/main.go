@@ -3,7 +3,12 @@ package main
 import (
 	"log"
 
+	"auth-service/internal/clients"
+	"auth-service/internal/handlers"
+	"auth-service/internal/repository"
+	"auth-service/internal/services"
 	"auth-service/pkg/config"
+	"auth-service/pkg/database"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,6 +18,20 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to load configuration:", err)
 	}
+
+	if err := database.InitDB(cfg); err != nil {
+		log.Fatal("Failed to initialize database:", err)
+	}
+
+	userServiceClient, err := clients.NewUserServiceClient(cfg.UserServiceURL)
+	if err != nil {
+		log.Fatal("Failed to create user service client:", err)
+	}
+	defer userServiceClient.Close()
+
+	credentialRepo := repository.NewCredentialRepository(database.GetDB())
+	authService := services.NewAuthService(credentialRepo, userServiceClient, cfg)
+	authHandler := handlers.NewAuthHandler(authService)
 
 	gin.SetMode(cfg.GinMode)
 
@@ -31,21 +50,9 @@ func main() {
 
 	authGroup := r.Group("/api/v1/auth")
 	{
-		authGroup.POST("/login", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "Login endpoint - coming soon",
-			})
-		})
-		authGroup.POST("/register", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "Register endpoint - coming soon",
-			})
-		})
-		authGroup.POST("/validate", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "Token validation endpoint - coming soon",
-			})
-		})
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.POST("/register", authHandler.Register)
+		authGroup.POST("/validate", authHandler.Validate)
 	}
 
 	log.Printf("Auth service starting on port %s", cfg.Port)
