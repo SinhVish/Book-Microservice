@@ -206,7 +206,6 @@ func (s *authService) createUserInUserService(email string) error {
 	return nil
 }
 
-// generateTokenPair generates both access and refresh tokens in a single operation
 func (s *authService) generateTokenPair(email string, credentialID uint) (string, string, int64, error) {
 	// Generate access token
 	accessExpirationTime := time.Now().Add(time.Duration(s.config.AccessTokenExpiryHours) * time.Hour)
