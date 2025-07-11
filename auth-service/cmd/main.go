@@ -50,9 +50,9 @@ func main() {
 
 	authGroup := r.Group("/api/v1/auth")
 	{
-		authGroup.POST("/login", authHandler.Login)
 		authGroup.POST("/register", authHandler.Register)
-		authGroup.POST("/validate", authHandler.Validate)
+		authGroup.POST("/login", authHandler.Login)
+		authGroup.POST("/refresh", authHandler.RefreshToken)
 	}
 
 	log.Printf("Auth service starting on port %s", cfg.Port)

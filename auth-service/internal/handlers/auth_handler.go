@@ -57,13 +57,43 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Login endpoint - coming soon",
-	})
+	var req services.LoginRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	response, err := h.authService.Login(&req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to login",
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
-func (h *AuthHandler) Validate(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Token validation endpoint - coming soon",
-	})
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	var req services.RefreshTokenRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	response, err := h.authService.RefreshToken(&req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to refresh token",
+		})
+	}
+
+	c.JSON(http.StatusOK, response)
 }

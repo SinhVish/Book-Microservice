@@ -16,8 +16,9 @@ type Config struct {
 	DBPassword string
 	DBName     string
 
-	JWTSecret      string
-	JWTExpiryHours int
+	JWTSecret               string
+	AccessTokenExpiryHours  int
+	RefreshTokenExpiryHours int
 
 	UserServiceURL string
 }
@@ -38,12 +39,21 @@ func LoadConfig() (*Config, error) {
 		UserServiceURL: getEnv("USER_SERVICE_URL", "localhost:9081"),
 	}
 
-	jwtExpiryStr := getEnv("JWT_EXPIRY_HOURS", "24")
-	jwtExpiry, err := strconv.Atoi(jwtExpiryStr)
+	// Access token expiry (default: 1 hour)
+	accessTokenExpiryStr := getEnv("ACCESS_TOKEN_EXPIRY_HOURS", "1")
+	accessTokenExpiry, err := strconv.Atoi(accessTokenExpiryStr)
 	if err != nil {
-		return nil, fmt.Errorf("invalid JWT_EXPIRY_HOURS: %v", err)
+		return nil, fmt.Errorf("invalid ACCESS_TOKEN_EXPIRY_HOURS: %v", err)
 	}
-	config.JWTExpiryHours = jwtExpiry
+	config.AccessTokenExpiryHours = accessTokenExpiry
+
+	// Refresh token expiry (default: 7 days = 168 hours)
+	refreshTokenExpiryStr := getEnv("REFRESH_TOKEN_EXPIRY_HOURS", "168")
+	refreshTokenExpiry, err := strconv.Atoi(refreshTokenExpiryStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REFRESH_TOKEN_EXPIRY_HOURS: %v", err)
+	}
+	config.RefreshTokenExpiryHours = refreshTokenExpiry
 
 	return config, nil
 }
