@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	userGrpc "user-service/internal/grpc"
+	"user-service/internal/handlers"
+	"user-service/internal/middleware"
 	"user-service/internal/repository"
 	"user-service/internal/services"
 	"user-service/pkg/config"
@@ -28,14 +30,19 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepository(database.GetDB())
-	userService := services.NewUserService(userRepo)
-	userServer := userGrpc.NewUserServer(userService)
+	userProfileRepo := repository.NewUserProfileRepository(database.GetDB())
+
+	userService := services.NewUserService(userRepo, userProfileRepo)
+
+	userServer := userGrpc.NewUserServer(userService) // gRPC server
+
+	userHandler := handlers.NewUserHandler(userService)
 
 	log.Printf("Starting gRPC server in goroutine...")
 	go startGRPCServer(userServer, cfg)
 
 	log.Printf("Starting HTTP server...")
-	startHTTPServer(cfg)
+	startHTTPServer(cfg, userHandler)
 }
 
 func startGRPCServer(userServer *userGrpc.UserServer, cfg *config.Config) {
@@ -65,7 +72,7 @@ func startGRPCServer(userServer *userGrpc.UserServer, cfg *config.Config) {
 	}
 }
 
-func startHTTPServer(cfg *config.Config) {
+func startHTTPServer(cfg *config.Config, userHandler *handlers.UserHandler) {
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.Default()
@@ -81,23 +88,14 @@ func startHTTPServer(cfg *config.Config) {
 		})
 	})
 
+	jwtMiddleware := middleware.NewJWTMiddleware(cfg)
+
 	userGroup := r.Group("/api/v1/users")
+	userGroup.Use(jwtMiddleware.ValidateToken())
 	{
-		userGroup.GET("/profile", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "User profile endpoint - coming soon",
-			})
-		})
-		userGroup.PUT("/profile", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "Update user profile endpoint - coming soon",
-			})
-		})
-		userGroup.GET("/", func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"message": "List users endpoint - coming soon",
-			})
-		})
+		userGroup.GET("/", userHandler.GetUser)
+		userGroup.GET("/profile", userHandler.GetUserProfile)
+		userGroup.POST("/profile", userHandler.CreateUserProfile)
 	}
 
 	log.Printf("HTTP server starting on port %s", cfg.Port)

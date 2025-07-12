@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"auth-service/internal/clients"
+	"auth-service/internal/dto"
 	"auth-service/internal/models"
 	"auth-service/internal/repository"
 	"auth-service/pkg/config"
@@ -20,58 +21,21 @@ import (
 )
 
 type AuthService interface {
-	Register(req *RegisterRequest) (*RegisterResponse, error)
-	Login(req *LoginRequest) (*LoginResponse, error)
-	RefreshToken(req *RefreshTokenRequest) (*RefreshTokenResponse, error)
+	Register(req *dto.AuthReq) (*dto.AuthRes, error)
+	Login(req *dto.AuthReq) (*dto.AuthRes, error)
+	RefreshToken(req *dto.RefreshTokenReq) (*dto.RefreshTokenRes, error)
+}
+
+type Claims struct {
+	Email  string `json:"email"`
+	UserID uint   `json:"user_id"`
+	jwt.RegisteredClaims
 }
 
 type authService struct {
 	credentialRepo    repository.CredentialRepository
 	userServiceClient *clients.UserServiceClient
 	config            *config.Config
-}
-
-type RegisterRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-type RegisterResponse struct {
-	ID           uint   `json:"id"`
-	Email        string `json:"email"`
-	Message      string `json:"message"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-}
-
-type LoginResponse struct {
-	ID           uint   `json:"id"`
-	Email        string `json:"email"`
-	Message      string `json:"message"`
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"`
-}
-
-type Claims struct {
-	Email string `json:"email"`
-	jwt.RegisteredClaims
-}
-
-type RefreshTokenRequest struct {
-	RefreshToken string `json:"refresh_token" binding:"required"`
-}
-
-type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresAt    int64  `json:"expires_at"`
 }
 
 func NewAuthService(credentialRepo repository.CredentialRepository, userServiceClient *clients.UserServiceClient, config *config.Config) AuthService {
@@ -82,7 +46,7 @@ func NewAuthService(credentialRepo repository.CredentialRepository, userServiceC
 	}
 }
 
-func (s *authService) Register(req *RegisterRequest) (*RegisterResponse, error) {
+func (s *authService) Register(req *dto.AuthReq) (*dto.AuthRes, error) {
 	existingCredential, err := s.credentialRepo.GetByEmail(req.Email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to check existing email: %v", err)
@@ -106,17 +70,18 @@ func (s *authService) Register(req *RegisterRequest) (*RegisterResponse, error) 
 		return nil, fmt.Errorf("failed to create credential: %v", err)
 	}
 
-	if err := s.createUserInUserService(req.Email); err != nil {
+	userID, err := s.createUserInUserService(req.Email)
+	if err != nil {
 		return nil, fmt.Errorf("failed to create user record: %v", err)
 	}
 
 	// Generate both tokens
-	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(credential.Email, credential.ID)
+	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(credential.Email, userID, credential.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %v", err)
 	}
 
-	return &RegisterResponse{
+	return &dto.AuthRes{
 		ID:           credential.ID,
 		Email:        credential.Email,
 		Message:      "User registered successfully",
@@ -126,7 +91,7 @@ func (s *authService) Register(req *RegisterRequest) (*RegisterResponse, error) 
 	}, nil
 }
 
-func (s *authService) Login(req *LoginRequest) (*LoginResponse, error) {
+func (s *authService) Login(req *dto.AuthReq) (*dto.AuthRes, error) {
 	existingCredential, err := s.credentialRepo.GetByEmail(req.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get credential: %v", err)
@@ -139,13 +104,19 @@ func (s *authService) Login(req *LoginRequest) (*LoginResponse, error) {
 		return nil, errors.New("invalid credentials")
 	}
 
+	// Get user ID from user-service
+	userID, err := s.getUserIDFromUserService(existingCredential.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user ID: %v", err)
+	}
+
 	// Generate both tokens
-	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(existingCredential.Email, existingCredential.ID)
+	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(existingCredential.Email, userID, existingCredential.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %v", err)
 	}
 
-	return &LoginResponse{
+	return &dto.AuthRes{
 		ID:           existingCredential.ID,
 		Email:        existingCredential.Email,
 		Message:      "Login successful",
@@ -155,7 +126,7 @@ func (s *authService) Login(req *LoginRequest) (*LoginResponse, error) {
 	}, nil
 }
 
-func (s *authService) RefreshToken(req *RefreshTokenRequest) (*RefreshTokenResponse, error) {
+func (s *authService) RefreshToken(req *dto.RefreshTokenReq) (*dto.RefreshTokenRes, error) {
 	oldRefreshToken, err := s.credentialRepo.GetRefreshTokenByToken(req.RefreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get refresh token: %v", err)
@@ -175,13 +146,19 @@ func (s *authService) RefreshToken(req *RefreshTokenRequest) (*RefreshTokenRespo
 		return nil, fmt.Errorf("failed to get credential: %v", err)
 	}
 
+	// Get user ID from user-service
+	userID, err := s.getUserIDFromUserService(credential.Email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user ID: %v", err)
+	}
+
 	// Generate both tokens
-	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(credential.Email, credential.ID)
+	accessToken, refreshToken, expiresAt, err := s.generateTokenPair(credential.Email, userID, credential.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate tokens: %v", err)
 	}
 
-	return &RefreshTokenResponse{
+	return &dto.RefreshTokenRes{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresAt:    expiresAt,
@@ -192,26 +169,41 @@ func (s *authService) RefreshToken(req *RefreshTokenRequest) (*RefreshTokenRespo
 // -- Helper functions --
 // -----------------------
 
-func (s *authService) createUserInUserService(email string) error {
+func (s *authService) createUserInUserService(email string) (uint, error) {
 	grpcReq := &user_service.CreateUserRequest{
 		Email: email,
 	}
 
 	ctx := context.Background()
-	_, err := s.userServiceClient.CreateUser(ctx, grpcReq)
+	response, err := s.userServiceClient.CreateUser(ctx, grpcReq)
 	if err != nil {
-		return fmt.Errorf("failed to create user via gRPC: %v", err)
+		return 0, fmt.Errorf("failed to create user via gRPC: %v", err)
 	}
 
-	return nil
+	return uint(response.Id), nil
 }
 
-func (s *authService) generateTokenPair(email string, credentialID uint) (string, string, int64, error) {
+func (s *authService) getUserIDFromUserService(email string) (uint, error) {
+	grpcReq := &user_service.GetUserByEmailRequest{
+		Email: email,
+	}
+
+	ctx := context.Background()
+	response, err := s.userServiceClient.GetUserByEmail(ctx, grpcReq)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get user by email via gRPC: %v", err)
+	}
+
+	return uint(response.Id), nil
+}
+
+func (s *authService) generateTokenPair(email string, userID uint, credentialID uint) (string, string, int64, error) {
 	// Generate access token
 	accessExpirationTime := time.Now().Add(time.Duration(s.config.AccessTokenExpiryHours) * time.Hour)
 
 	claims := &Claims{
-		Email: email,
+		Email:  email,
+		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(accessExpirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

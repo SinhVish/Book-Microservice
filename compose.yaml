@@ -66,6 +66,9 @@ services:
       - USER_SERVICE_URL=user-service:9081
     ports:
       - "8080:8080"
+    volumes:
+      - ./auth-service:/app/auth-service
+      - ./shared:/app/shared
     depends_on:
       auth-mysql:
         condition: service_healthy
@@ -94,6 +97,9 @@ services:
     ports:
       - "8081:8081"
       - "9081:9081"
+    volumes:
+      - ./user-service:/app/user-service
+      - ./shared:/app/shared
     depends_on:
       user-mysql:
         condition: service_healthy

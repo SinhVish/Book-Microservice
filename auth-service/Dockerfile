@@ -1,6 +1,10 @@
-FROM golang:1.24-alpine AS builder
+# Development Dockerfile with Air hot reload
+FROM golang:1.24
 
 WORKDIR /app
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
 
 # Copy shared module first
 COPY shared/ ./shared/
@@ -16,21 +20,11 @@ RUN go mod download
 # Copy auth-service source code
 COPY auth-service/ ./
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main cmd/main.go
-
-# Final stage
-FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates
-
-WORKDIR /root/
-
-# Copy the binary from builder stage
-COPY --from=builder /app/auth-service/main .
+# Create tmp directory for Air
+RUN mkdir -p tmp
 
 # Expose port
 EXPOSE 8080
 
-# Run the application
-CMD ["./main"] 
+# Run with Air for hot reload
+CMD ["air", "-c", ".air.toml"] 

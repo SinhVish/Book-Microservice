@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 
+	"auth-service/internal/dto"
 	"auth-service/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,7 @@ func NewAuthHandler(authService services.AuthService) *AuthHandler {
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req services.RegisterRequest
+	var req dto.AuthReq
 
 	// ShouldBindJSON is used to bind the request body to the RegisterRequest struct
 	// Meaning it will parse the request body and populate the req struct with the data
@@ -57,7 +58,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req services.LoginRequest
+	var req dto.AuthReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -78,7 +79,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req services.RefreshTokenRequest
+	var req dto.RefreshTokenReq
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{

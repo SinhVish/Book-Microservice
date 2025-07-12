@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"user-service/internal/dto"
 	"user-service/internal/models"
 	"user-service/internal/repository"
 
@@ -11,27 +12,77 @@ import (
 )
 
 type UserService interface {
+	CreateUserProfile(userID uint, req dto.CreateUserProfileReq) (*models.UserProfile, error)
+	GetUserProfile(userID uint) (*models.UserProfile, error)
 	CreateUser(email string) (*models.User, error)
 	GetUserByEmail(email string) (*models.User, error)
-	GetUserByID(id uint) (*models.User, error)
+	GetUserByID(userID uint) (*models.User, error)
 }
 
 type userService struct {
-	userRepo repository.UserRepository
+	userRepo        repository.UserRepository
+	userProfileRepo repository.UserProfileRepository
 }
 
-// NewUserService is used to
-// create a new instance of user service with injected dependencies
-// It's important because it provides dependency injection for repository, enabling clean architecture and testability
-func NewUserService(userRepo repository.UserRepository) UserService {
+func NewUserService(userRepo repository.UserRepository, userProfileRepo repository.UserProfileRepository) UserService {
 	return &userService{
-		userRepo: userRepo,
+		userRepo:        userRepo,
+		userProfileRepo: userProfileRepo,
 	}
 }
 
-// CreateUser is used to
-// handle user creation business logic including validation and default values
-// It's important because the workflow is: check email uniqueness, create user with default status, and return user record
+func (s *userService) GetUserProfile(userID uint) (*models.UserProfile, error) {
+	profile, err := s.userProfileRepo.GetByUserID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user profile: %v", err)
+	}
+	return profile, nil
+}
+
+func (s *userService) CreateUserProfile(userID uint, req dto.CreateUserProfileReq) (*models.UserProfile, error) {
+	// Check if user profile already exists
+	existingProfile, err := s.userProfileRepo.GetByUserID(userID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to check existing profile: %v", err)
+	}
+	if existingProfile != nil {
+		return nil, errors.New("user profile already exists")
+	}
+
+	profile := &models.UserProfile{
+		ID:          userID, // Set the UserProfile.ID to match User.ID for one-to-one relationship
+		FirstName:   &req.FirstName,
+		LastName:    &req.LastName,
+		Phone:       &req.Phone,
+		DateOfBirth: &req.DateOfBirth,
+		Gender:      &req.Gender,
+		Bio:         &req.Bio,
+		Address:     &req.Address,
+	}
+
+	if err := s.userProfileRepo.Create(profile); err != nil {
+		return nil, fmt.Errorf("failed to create user profile: %v", err)
+	}
+
+	return profile, nil
+}
+
+func (s *userService) GetUserByEmail(email string) (*models.User, error) {
+	user, err := s.userRepo.GetByEmail(email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by email: %v", err)
+	}
+	return user, nil
+}
+
+func (s *userService) GetUserByID(userID uint) (*models.User, error) {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user by id: %v", err)
+	}
+	return user, nil
+}
+
 func (s *userService) CreateUser(email string) (*models.User, error) {
 	existingUser, err := s.userRepo.GetByEmail(email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -50,27 +101,5 @@ func (s *userService) CreateUser(email string) (*models.User, error) {
 		return nil, fmt.Errorf("failed to create user: %v", err)
 	}
 
-	return user, nil
-}
-
-// GetUserByEmail is used to
-// retrieve user information by email address
-// It's important because it enables user lookup for authentication and profile operations
-func (s *userService) GetUserByEmail(email string) (*models.User, error) {
-	user, err := s.userRepo.GetByEmail(email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user by email: %v", err)
-	}
-	return user, nil
-}
-
-// GetUserByID is used to
-// retrieve user information by ID
-// It's important because it enables user lookup for profile operations and user management
-func (s *userService) GetUserByID(id uint) (*models.User, error) {
-	user, err := s.userRepo.GetByID(id)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user by ID: %v", err)
-	}
 	return user, nil
 }
