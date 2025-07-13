@@ -2,11 +2,12 @@ package services
 
 import (
 	"errors"
-	"fmt"
 
 	"user-service/internal/dto"
 	"user-service/internal/models"
 	"user-service/internal/repository"
+
+	"shared/utils"
 
 	"gorm.io/gorm"
 )
@@ -34,23 +35,25 @@ func NewUserService(userRepo repository.UserRepository, userProfileRepo reposito
 func (s *userService) GetUserProfile(userID uint) (*models.UserProfile, error) {
 	profile, err := s.userProfileRepo.GetByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user profile: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.NotFound("User profile not found")
+		}
+		return nil, utils.InternalServerError("Failed to get user profile")
 	}
 	return profile, nil
 }
 
 func (s *userService) CreateUserProfile(userID uint, req dto.CreateUserProfileReq) (*models.UserProfile, error) {
-	// Check if user profile already exists
 	existingProfile, err := s.userProfileRepo.GetByUserID(userID)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to check existing profile: %v", err)
+		return nil, utils.InternalServerError("Failed to check existing profile")
 	}
 	if existingProfile != nil {
-		return nil, errors.New("user profile already exists")
+		return nil, utils.Conflict("User profile already exists")
 	}
 
 	profile := &models.UserProfile{
-		ID:          userID, // Set the UserProfile.ID to match User.ID for one-to-one relationship
+		ID:          userID,
 		FirstName:   &req.FirstName,
 		LastName:    &req.LastName,
 		Phone:       &req.Phone,
@@ -61,7 +64,7 @@ func (s *userService) CreateUserProfile(userID uint, req dto.CreateUserProfileRe
 	}
 
 	if err := s.userProfileRepo.Create(profile); err != nil {
-		return nil, fmt.Errorf("failed to create user profile: %v", err)
+		return nil, utils.InternalServerError("Failed to create user profile")
 	}
 
 	return profile, nil
@@ -70,7 +73,10 @@ func (s *userService) CreateUserProfile(userID uint, req dto.CreateUserProfileRe
 func (s *userService) GetUserByEmail(email string) (*models.User, error) {
 	user, err := s.userRepo.GetByEmail(email)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by email: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.NotFound("User not found")
+		}
+		return nil, utils.InternalServerError("Failed to get user by email")
 	}
 	return user, nil
 }
@@ -78,7 +84,10 @@ func (s *userService) GetUserByEmail(email string) (*models.User, error) {
 func (s *userService) GetUserByID(userID uint) (*models.User, error) {
 	user, err := s.userRepo.GetByID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user by id: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.NotFound("User not found")
+		}
+		return nil, utils.InternalServerError("Failed to get user by id")
 	}
 	return user, nil
 }
@@ -86,10 +95,10 @@ func (s *userService) GetUserByID(userID uint) (*models.User, error) {
 func (s *userService) CreateUser(email string) (*models.User, error) {
 	existingUser, err := s.userRepo.GetByEmail(email)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fmt.Errorf("failed to check existing email: %v", err)
+		return nil, utils.InternalServerError("Failed to check existing email")
 	}
 	if existingUser != nil {
-		return nil, errors.New("user with this email already exists")
+		return nil, utils.Conflict("User with this email already exists")
 	}
 
 	user := &models.User{
@@ -98,7 +107,7 @@ func (s *userService) CreateUser(email string) (*models.User, error) {
 	}
 
 	if err := s.userRepo.Create(user); err != nil {
-		return nil, fmt.Errorf("failed to create user: %v", err)
+		return nil, utils.InternalServerError("Failed to create user")
 	}
 
 	return user, nil

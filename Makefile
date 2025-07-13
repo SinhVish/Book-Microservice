@@ -11,6 +11,7 @@ help:
 	@echo "  logs           - Logs from all services"
 	@echo "  down           - Stop all services"
 	@echo "  clean          - Clean up containers and volumes"
+	@echo "  tidy           - Tidy up dependencies"
 
 # Development with hot reload in Docker (recommended)
 up-build:
@@ -58,3 +59,11 @@ clean:
 	@docker compose down -v
 	@docker system prune -f
 	@echo "Cleanup complete!" 
+
+# Tidy up dependencies
+tidy:
+	@echo "Tidying up dependencies..."
+	@cd auth-service && go mod tidy
+	@cd user-service && go mod tidy
+	@cd shared && go mod tidy
+	@echo "Dependencies tidied up!"

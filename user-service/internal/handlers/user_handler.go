@@ -7,6 +7,8 @@ import (
 	"user-service/internal/dto"
 	"user-service/internal/services"
 
+	"shared/utils"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,13 +21,11 @@ func NewUserHandler(userService services.UserService) *UserHandler {
 }
 
 func (h *UserHandler) GetUser(c *gin.Context) {
-	log.Println("GetUser")
 	userID := c.GetUint("user_id")
-	log.Println("userID", userID)
 
 	user, err := h.userService.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.HandleError(c, err)
 		return
 	}
 
@@ -33,31 +33,18 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 }
 
 func (h *UserHandler) CreateUserProfile(c *gin.Context) {
-	// Extract user_id from context (set by JWT middleware)
-	userIDInterface, exists := c.Get("user_id")
-	if !exists {
-		log.Println("user_id not found in context")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
-	}
-
-	userID, ok := userIDInterface.(uint)
-	if !ok {
-		log.Println("Invalid user_id type in context")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user_id type"})
-		return
-	}
+	userID := c.GetUint("user_id")
 
 	var req dto.CreateUserProfileReq
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Println("Error binding JSON:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.HandleError(c, utils.BadRequest("Invalid request body"))
 		return
 	}
 
 	user_profile, err := h.userService.CreateUserProfile(userID, req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		utils.HandleError(c, err)
 		return
 	}
 
@@ -65,28 +52,12 @@ func (h *UserHandler) CreateUserProfile(c *gin.Context) {
 }
 
 func (h *UserHandler) GetUserProfile(c *gin.Context) {
-	// Extract user_id from context (set by JWT middleware)
-	userIDInterface, exists := c.Get("user_id")
-	if !exists {
-		log.Println("user_id not found in context")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "user_id not found in context"})
-		return
-	}
-
-	userID, ok := userIDInterface.(uint)
-	if !ok {
-		log.Println("Invalid user_id type in context")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid user_id type"})
-		return
-	}
+	userID := c.GetUint("user_id")
 
 	profile, err := h.userService.GetUserProfile(userID)
 	if err != nil {
-		if err.Error() == "record not found" {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user profile not found"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Just like Django - one line handles all custom errors!
+		utils.HandleError(c, err)
 		return
 	}
 
