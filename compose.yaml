@@ -45,6 +45,29 @@ services:
       retries: 5
       interval: 30s
 
+  # Book Service MySQL Database
+  book-mysql:
+    image: mysql:8.0
+    container_name: book-mysql
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${BOOK_DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3308:3306"  # Different port to avoid conflicts
+    volumes:
+      - book_mysql_data:/var/lib/mysql
+    networks:
+      - microservice-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
   # Auth Service
   auth-service:
     build:
@@ -107,6 +130,35 @@ services:
       - microservice-network
     restart: unless-stopped
 
+  # Book Service
+  book-service:
+    build:
+      context: .
+      dockerfile: ./book-service/Dockerfile
+    container_name: microservice-book
+    env_file:
+      - .env
+    environment:
+      - PORT=${BOOK_SERVICE_PORT}
+      - GIN_MODE=${GIN_MODE}
+      - DB_HOST=book-mysql
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${BOOK_DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./book-service:/app/book-service
+      - ./shared:/app/shared
+    depends_on:
+      book-mysql:
+        condition: service_healthy
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
 networks:
   microservice-network:
     driver: bridge
@@ -115,4 +167,6 @@ volumes:
   auth_mysql_data:
     driver: local
   user_mysql_data:
+    driver: local
+  book_mysql_data:
     driver: local 
