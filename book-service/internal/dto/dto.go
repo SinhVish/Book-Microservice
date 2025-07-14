@@ -4,7 +4,6 @@ import (
 	"time"
 )
 
-// Author DTOs
 type CreateAuthorReq struct {
 	Name      string     `json:"name" binding:"required"`
 	Bio       string     `json:"bio"`
@@ -19,7 +18,6 @@ type UpdateAuthorReq struct {
 	Country   *string    `json:"country,omitempty"`
 }
 
-// Book DTOs
 type CreateBookReq struct {
 	Title       string  `json:"title" binding:"required"`
 	Description string  `json:"description"`
@@ -42,7 +40,6 @@ type UpdateBookReq struct {
 	AuthorID    *uint    `json:"author_id,omitempty"`
 }
 
-// Search DTOs
 type SearchBooksReq struct {
 	AuthorName  string `json:"author_name,omitempty" form:"author_name"`
 	BookTitle   string `json:"book_title,omitempty" form:"book_title"`

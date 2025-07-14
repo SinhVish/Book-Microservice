@@ -33,7 +33,6 @@ func NewAuthorService(authorRepo repository.AuthorRepository, bookRepo repositor
 }
 
 func (s *authorService) CreateAuthor(req dto.CreateAuthorReq) (*models.Author, error) {
-	// Check if author with the same name already exists
 	existingAuthor, err := s.authorRepo.GetByName(req.Name)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, utils.InternalServerError("Failed to check existing author")

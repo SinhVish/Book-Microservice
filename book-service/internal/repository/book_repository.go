@@ -65,12 +65,11 @@ func (r *bookRepository) SearchBooks(req dto.SearchBooksReq) ([]dto.BookWithAuth
 	var books []dto.BookWithAuthor
 	var total int64
 
-	// Build the query
 	query := r.db.Model(&models.Book{}).
 		Select("books.id, books.title, books.description, books.publish_year, books.isbn, books.genre, books.pages, books.price, books.author_id, authors.name as author_name, books.created_at, books.updated_at").
 		Joins("JOIN authors ON books.author_id = authors.id")
 
-	// Apply filters
+	//  Filters
 	if req.AuthorName != "" {
 		query = query.Where("authors.name LIKE ?", "%"+req.AuthorName+"%")
 	}
@@ -84,18 +83,16 @@ func (r *bookRepository) SearchBooks(req dto.SearchBooksReq) ([]dto.BookWithAuth
 		query = query.Where("books.genre LIKE ?", "%"+req.Genre+"%")
 	}
 
-	// Get total count
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Apply pagination
+	// Pagination
 	if req.Page > 0 && req.Limit > 0 {
 		offset := (req.Page - 1) * req.Limit
 		query = query.Offset(offset).Limit(req.Limit)
 	}
 
-	// Execute query
 	if err := query.Find(&books).Error; err != nil {
 		return nil, 0, err
 	}

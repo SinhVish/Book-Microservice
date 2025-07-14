@@ -17,18 +17,12 @@ type UserServer struct {
 	userService services.UserService
 }
 
-// NewUserServer is used to
-// create a new instance of gRPC user server with injected user service
-// It's important because it provides dependency injection for gRPC server and business logic separation
 func NewUserServer(userService services.UserService) *UserServer {
 	return &UserServer{
 		userService: userService,
 	}
 }
 
-// CreateUser is used to
-// handle gRPC requests for user creation from other microservices
-// It's important because the workflow is: receive gRPC request, validate email, call user service, and return gRPC response
 func (s *UserServer) CreateUser(ctx context.Context, req *user_service.CreateUserRequest) (*user_service.CreateUserResponse, error) {
 	log.Printf("Received CreateUser request for email: %s", req.Email)
 
@@ -54,9 +48,6 @@ func (s *UserServer) CreateUser(ctx context.Context, req *user_service.CreateUse
 	}, nil
 }
 
-// GetUserByEmail is used to
-// handle gRPC requests for user retrieval by email address
-// It's important because the workflow is: receive gRPC request, validate email, call user service, and return user data
 func (s *UserServer) GetUserByEmail(ctx context.Context, req *user_service.GetUserByEmailRequest) (*user_service.GetUserByEmailResponse, error) {
 	log.Printf("Received GetUserByEmail request for email: %s", req.Email)
 

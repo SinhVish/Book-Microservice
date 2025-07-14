@@ -27,7 +27,6 @@ func NewJWTMiddleware(config *config.Config) *JWTMiddleware {
 
 func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Extract Authorization header
 		authHeader := c.GetHeader("Authorization")
 		log.Println("authHeader", authHeader)
 		if authHeader == "" {
@@ -38,7 +37,6 @@ func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
 			return
 		}
 
-		// Check Bearer prefix
 		if !strings.HasPrefix(authHeader, "Bearer ") {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"error": "Invalid authorization format. Use 'Bearer <token>'",
@@ -47,13 +45,10 @@ func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
 			return
 		}
 
-		// Extract token
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		// Parse and validate token
 		claims := &Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			// Verify the signing method
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrInvalidKeyType
 			}
@@ -78,12 +73,10 @@ func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
 
 		log.Println("claims", claims)
 
-		// Set user context for downstream handlers
 		c.Set("user_email", claims.Email)
 		c.Set("user_id", claims.UserID)
 		c.Set("user_claims", claims)
 
-		// Continue to next handler
 		c.Next()
 	}
 }

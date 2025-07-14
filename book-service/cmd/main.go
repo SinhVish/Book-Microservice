@@ -56,13 +56,10 @@ func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, 
 		})
 	})
 
-	// Initialize JWT middleware
 	jwtMiddleware := middleware.NewJWTMiddleware(cfg)
 
-	// API routes
 	v1 := r.Group("/api/v1")
 	{
-		// Author routes (protected)
 		authors := v1.Group("/authors")
 		authors.Use(jwtMiddleware.ValidateToken())
 		{
@@ -73,7 +70,6 @@ func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, 
 			authors.DELETE("/:id", authorHandler.DeleteAuthor)
 		}
 
-		// Book routes (protected)
 		books := v1.Group("/books")
 		books.Use(jwtMiddleware.ValidateToken())
 		{
