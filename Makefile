@@ -20,6 +20,7 @@ up-build:
 	@echo "Services started with hot reload!"
 	@echo "Auth service: http://localhost:8080"
 	@echo "User service: http://localhost:8081"
+	@echo "Book service: http://localhost:8082"
 	@echo "Use 'make logs' to view logs"
 	@echo "Use 'make down' to stop services"
 
