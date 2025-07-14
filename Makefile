@@ -65,5 +65,6 @@ tidy:
 	@echo "Tidying up dependencies..."
 	@cd auth-service && go mod tidy
 	@cd user-service && go mod tidy
+	@cd book-service && go mod tidy
 	@cd shared && go mod tidy
 	@echo "Dependencies tidied up!"
