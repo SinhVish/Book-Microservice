@@ -12,10 +12,10 @@ import (
 )
 
 type JWTMiddleware struct {
-	authClient *clients.AuthServiceClient
+	authClient *clients.CachedAuthClient
 }
 
-func NewJWTMiddleware(authClient *clients.AuthServiceClient) *JWTMiddleware {
+func NewJWTMiddleware(authClient *clients.CachedAuthClient) *JWTMiddleware {
 	return &JWTMiddleware{authClient: authClient}
 }
 
