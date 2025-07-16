@@ -1,12 +1,18 @@
+version: '3.8'
+
+networks:
+  microservice-network:
+    driver: bridge
+
 services:
-  # Auth Service MySQL Database
+  # MySQL for Auth Service
   auth-mysql:
     image: mysql:8.0
     container_name: auth-mysql
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${AUTH_DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
@@ -14,59 +20,59 @@ services:
       - "3306:3306"
     volumes:
       - auth_mysql_data:/var/lib/mysql
-    networks:
-      - microservice-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 10s
-      retries: 5
-      interval: 30s
+      timeout: 20s
+      retries: 10
+    networks:
+      - microservice-network
+    restart: unless-stopped
 
-  # User Service MySQL Database
+  # MySQL for User Service
   user-mysql:
     image: mysql:8.0
     container_name: user-mysql
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${USER_DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3307:3306"  # Different port to avoid conflicts
+      - "3307:3306"
     volumes:
       - user_mysql_data:/var/lib/mysql
-    networks:
-      - microservice-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 10s
-      retries: 5
-      interval: 30s
+      timeout: 20s
+      retries: 10
+    networks:
+      - microservice-network
+    restart: unless-stopped
 
-  # Book Service MySQL Database
+  # MySQL for Book Service
   book-mysql:
     image: mysql:8.0
     container_name: book-mysql
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${BOOK_DB_NAME}
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3308:3306"  # Different port to avoid conflicts
+      - "3308:3306"
     volumes:
       - book_mysql_data:/var/lib/mysql
-    networks:
-      - microservice-network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 10s
-      retries: 5
-      interval: 30s
+      timeout: 20s
+      retries: 10
+    networks:
+      - microservice-network
+    restart: unless-stopped
 
   # Auth Service
   auth-service:
@@ -89,6 +95,7 @@ services:
       - USER_SERVICE_URL=user-service:9081
     ports:
       - "8080:8080"
+      - "9080:9080"
     volumes:
       - ./auth-service:/app/auth-service
       - ./shared:/app/shared
@@ -116,7 +123,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${USER_DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
-      - AUTH_SERVICE_URL=http://auth-service:8080
+      - AUTH_SERVICE_URL=auth-service:9080
     ports:
       - "8081:8081"
       - "9081:9081"
@@ -147,6 +154,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${BOOK_DB_NAME}
       - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=auth-service:9080
     ports:
       - "8082:8082"
     volumes:
@@ -159,14 +167,7 @@ services:
       - microservice-network
     restart: unless-stopped
 
-networks:
-  microservice-network:
-    driver: bridge
-
 volumes:
   auth_mysql_data:
-    driver: local
   user_mysql_data:
-    driver: local
-  book_mysql_data:
-    driver: local 
+  book_mysql_data: 

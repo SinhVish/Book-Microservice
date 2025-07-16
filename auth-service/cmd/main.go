@@ -2,15 +2,21 @@ package main
 
 import (
 	"log"
+	"net"
+	"strconv"
 
 	"auth-service/internal/clients"
+	authGrpc "auth-service/internal/grpc"
 	"auth-service/internal/handlers"
 	"auth-service/internal/repository"
 	"auth-service/internal/services"
 	"auth-service/pkg/config"
 	"auth-service/pkg/database"
 
+	"shared/proto/auth_service"
+
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -30,9 +36,43 @@ func main() {
 	defer userServiceClient.Close()
 
 	credentialRepo := repository.NewCredentialRepository(database.GetDB())
+
 	authService := services.NewAuthService(credentialRepo, userServiceClient, cfg)
+
 	authHandler := handlers.NewAuthHandler(authService)
 
+	authServer := authGrpc.NewAuthServer(cfg)
+	go startGRPCServer(authServer, cfg)
+
+	startHTTPServer(cfg, authHandler)
+}
+
+func startGRPCServer(authServer *authGrpc.AuthServer, cfg *config.Config) {
+	log.Printf("Starting gRPC server setup...")
+
+	grpcPort, err := strconv.Atoi(cfg.Port)
+	if err != nil {
+		log.Printf("Invalid port configuration: %v", err)
+		return
+	}
+	grpcPort = grpcPort + 1000 // Use port 9080 for gRPC if HTTP is 8080
+
+	lis, err := net.Listen("tcp", ":"+strconv.Itoa(grpcPort))
+	if err != nil {
+		log.Printf("Failed to listen on gRPC port: %v", err)
+		return
+	}
+
+	grpcServer := grpc.NewServer()
+	auth_service.RegisterAuthServiceServer(grpcServer, authServer)
+
+	if err := grpcServer.Serve(lis); err != nil {
+		log.Printf("Failed to start gRPC server: %v", err)
+		return
+	}
+}
+
+func startHTTPServer(cfg *config.Config, authHandler *handlers.AuthHandler) {
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.Default()
@@ -55,11 +95,11 @@ func main() {
 		authGroup.POST("/refresh", authHandler.RefreshToken)
 	}
 
-	log.Printf("Auth service starting on port %s", cfg.Port)
+	log.Printf("HTTP server starting on port %s", cfg.Port)
 	log.Printf("Database URL: %s", cfg.GetDatabaseURL())
 	log.Printf("User Service URL: %s", cfg.UserServiceURL)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
-		log.Fatal("Failed to start server:", err)
+		log.Fatal("Failed to start HTTP server:", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 
+	"user-service/internal/clients"
 	userGrpc "user-service/internal/grpc"
 	"user-service/internal/handlers"
 	"user-service/internal/middleware"
@@ -29,6 +30,12 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
+	authServiceClient, err := clients.NewAuthServiceClient(cfg.AuthServiceURL)
+	if err != nil {
+		log.Fatal("Failed to create auth service client:", err)
+	}
+	defer authServiceClient.Close()
+
 	userRepo := repository.NewUserRepository(database.GetDB())
 	userProfileRepo := repository.NewUserProfileRepository(database.GetDB())
 
@@ -38,15 +45,12 @@ func main() {
 
 	userHandler := handlers.NewUserHandler(userService)
 
-	log.Printf("Starting gRPC server in goroutine...")
 	go startGRPCServer(userServer, cfg)
 
-	log.Printf("Starting HTTP server...")
-	startHTTPServer(cfg, userHandler)
+	startHTTPServer(cfg, userHandler, authServiceClient)
 }
 
 func startGRPCServer(userServer *userGrpc.UserServer, cfg *config.Config) {
-	log.Printf("Starting gRPC server setup...")
 
 	grpcPort, err := strconv.Atoi(cfg.Port)
 	if err != nil {
@@ -55,7 +59,6 @@ func startGRPCServer(userServer *userGrpc.UserServer, cfg *config.Config) {
 	}
 	grpcPort = grpcPort + 1000
 
-	log.Printf("Attempting to listen on gRPC port %d", grpcPort)
 	lis, err := net.Listen("tcp", ":"+strconv.Itoa(grpcPort))
 	if err != nil {
 		log.Printf("Failed to listen on gRPC port: %v", err)
@@ -65,18 +68,16 @@ func startGRPCServer(userServer *userGrpc.UserServer, cfg *config.Config) {
 	grpcServer := grpc.NewServer()
 	user_service.RegisterUserServiceServer(grpcServer, userServer)
 
-	log.Printf("gRPC server starting on port %d", grpcPort)
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Printf("Failed to start gRPC server: %v", err)
 		return
 	}
 }
 
-func startHTTPServer(cfg *config.Config, userHandler *handlers.UserHandler) {
+func startHTTPServer(cfg *config.Config, userHandler *handlers.UserHandler, authServiceClient *clients.AuthServiceClient) {
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.Default()
-
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
@@ -88,7 +89,7 @@ func startHTTPServer(cfg *config.Config, userHandler *handlers.UserHandler) {
 		})
 	})
 
-	jwtMiddleware := middleware.NewJWTMiddleware(cfg)
+	jwtMiddleware := middleware.NewJWTMiddleware(authServiceClient)
 
 	userGroup := r.Group("/api/v1/users")
 	userGroup.Use(jwtMiddleware.ValidateToken())
@@ -97,10 +98,6 @@ func startHTTPServer(cfg *config.Config, userHandler *handlers.UserHandler) {
 		userGroup.GET("/profile", userHandler.GetUserProfile)
 		userGroup.POST("/profile", userHandler.CreateUserProfile)
 	}
-
-	log.Printf("HTTP server starting on port %s", cfg.Port)
-	log.Printf("Database URL: %s", cfg.GetDatabaseURL())
-	log.Printf("Auth Service URL: %s", cfg.AuthServiceURL)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal("Failed to start HTTP server:", err)

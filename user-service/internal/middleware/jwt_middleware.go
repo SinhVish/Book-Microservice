@@ -1,28 +1,22 @@
 package middleware
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"strings"
 
-	"user-service/pkg/config"
+	"user-service/internal/clients"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type JWTMiddleware struct {
-	config *config.Config
+	authClient *clients.AuthServiceClient
 }
 
-type Claims struct {
-	Email  string `json:"email"`
-	UserID uint   `json:"user_id"`
-	jwt.RegisteredClaims
-}
-
-func NewJWTMiddleware(config *config.Config) *JWTMiddleware {
-	return &JWTMiddleware{config: config}
+func NewJWTMiddleware(authClient *clients.AuthServiceClient) *JWTMiddleware {
+	return &JWTMiddleware{authClient: authClient}
 }
 
 func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
@@ -30,52 +24,41 @@ func (m *JWTMiddleware) ValidateToken() gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		log.Println("authHeader", authHeader)
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header required",
-			})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 			c.Abort()
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid authorization format. Use 'Bearer <token>'",
-			})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format. Use 'Bearer <token>'"})
 			c.Abort()
 			return
 		}
 
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
-		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, jwt.ErrInvalidKeyType
-			}
-			return []byte(m.config.JWTSecret), nil
-		})
-
+		// Call auth-service to validate token via gRPC
+		ctx := context.Background()
+		response, err := m.authClient.ValidateToken(ctx, tokenString)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid token: " + err.Error(),
-			})
+			log.Printf("Failed to call auth service: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Authentication service unavailable"})
 			c.Abort()
 			return
 		}
 
-		if !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Token is not valid",
-			})
+		if !response.IsValid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": response.ErrorMessage})
 			c.Abort()
 			return
 		}
 
-		log.Println("claims", claims)
+		log.Printf("Token validated successfully for user: %s", response.Claims.Email)
 
-		c.Set("user_email", claims.Email)
-		c.Set("user_id", claims.UserID)
-		c.Set("user_claims", claims)
+		// Set user information in context
+		c.Set("user_email", response.Claims.Email)
+		c.Set("user_id", uint(response.Claims.UserId))
+		c.Set("user_claims", response.Claims)
 
 		c.Next()
 	}

@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package auth_service;
+
+option go_package = "shared/proto/auth_service";
+
+service AuthService {
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool is_valid = 1;
+  string error_message = 2;
+  UserClaims claims = 3;
+}
+
+message UserClaims {
+  string email = 1;
+  uint32 user_id = 2;
+  string issuer = 3;
+  string subject = 4;
+  int64 expires_at = 5;
+  int64 issued_at = 6;
+} 

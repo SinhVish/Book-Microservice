@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"book-service/internal/clients"
 	"book-service/internal/handlers"
 	"book-service/internal/middleware"
 	"book-service/internal/repository"
@@ -23,23 +24,25 @@ func main() {
 		log.Fatal("Failed to initialize database:", err)
 	}
 
-	// Initialize repositories
+	authServiceClient, err := clients.NewAuthServiceClient(cfg.AuthServiceURL)
+	if err != nil {
+		log.Fatal("Failed to create auth service client:", err)
+	}
+	defer authServiceClient.Close()
+
 	authorRepo := repository.NewAuthorRepository(database.GetDB())
 	bookRepo := repository.NewBookRepository(database.GetDB())
 
-	// Initialize services
 	authorService := services.NewAuthorService(authorRepo, bookRepo)
 	bookService := services.NewBookService(bookRepo, authorRepo)
 
-	// Initialize handlers
 	authorHandler := handlers.NewAuthorHandler(authorService)
 	bookHandler := handlers.NewBookHandler(bookService)
 
-	log.Printf("Starting HTTP server...")
-	startHTTPServer(cfg, authorHandler, bookHandler)
+	startHTTPServer(cfg, authorHandler, bookHandler, authServiceClient)
 }
 
-func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, bookHandler *handlers.BookHandler) {
+func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, bookHandler *handlers.BookHandler, authServiceClient *clients.AuthServiceClient) {
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.Default()
@@ -47,16 +50,11 @@ func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	// Health check endpoint
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":  "healthy",
-			"service": "book-service",
-			"port":    cfg.Port,
-		})
+		c.JSON(200, gin.H{"status": "healthy", "service": "book-service", "port": cfg.Port})
 	})
 
-	jwtMiddleware := middleware.NewJWTMiddleware(cfg)
+	jwtMiddleware := middleware.NewJWTMiddleware(authServiceClient)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -82,9 +80,6 @@ func startHTTPServer(cfg *config.Config, authorHandler *handlers.AuthorHandler, 
 			books.GET("/search", bookHandler.SearchBooks)
 		}
 	}
-
-	log.Printf("HTTP server starting on port %s", cfg.Port)
-	log.Printf("Database URL: %s", cfg.GetDatabaseURL())
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal("Failed to start HTTP server:", err)

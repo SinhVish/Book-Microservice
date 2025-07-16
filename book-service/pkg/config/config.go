@@ -15,6 +15,8 @@ type Config struct {
 	DBPassword string
 	DBName     string
 
+	AuthServiceURL string
+
 	JWTSecret string
 }
 
@@ -28,6 +30,8 @@ func LoadConfig() (*Config, error) {
 		DBUser:     getEnv("DB_USER", "root"),
 		DBPassword: getEnv("DB_PASSWORD", "password"),
 		DBName:     getEnv("DB_NAME", "book_db"),
+
+		AuthServiceURL: getEnv("AUTH_SERVICE_URL", "localhost:9080"),
 
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-change-this-in-production"),
 	}
